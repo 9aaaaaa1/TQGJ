@@ -1,9 +1,9 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>手机号匹配提取</title>
+  <title>手机号匹配提取 </title>
   <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
   <script>
     function cleanPhone(v){ if(v==null) return ""; return String(v).replace(/\D+/g, ""); }
@@ -32,6 +32,14 @@
       const downloadBtn = el('downloadBtn');
       const resultInfo = el('resultInfo');
       const previewBox = el('previewBox');
+
+      // 新增：号段筛选相关元素
+      const segmentInput = el('segmentInput');
+      const segmentFileInput = el('segmentFile');
+      const segmentBtn = el('segmentBtn');
+      const downloadSegBtn = el('downloadSegBtn');
+      const downloadRemainBtn = el('downloadRemainBtn');
+      const segmentInfo = el('segmentInfo');
 
       let csvPhonesSet = new Set();
       let txtRows = [];
@@ -85,18 +93,55 @@
 
       csvInput.addEventListener('change', handleCSV);
       txtInput.addEventListener('change', handleTXT);
+
+      // 号段筛选功能
+      segmentBtn.addEventListener('click', async ()=>{
+        if(!segmentFileInput.files?.length){ alert('请先选择一个TXT文件'); return; }
+        const file = segmentFileInput.files[0];
+        const text = await readAsText(file);
+        const delim = detectDelimiter(text.slice(0,2000));
+        const parsed = Papa.parse(text, { header:false, delimiter:delim, skipEmptyLines:true });
+        const rows = parsed.data;
+        const seg = segmentInput.value.trim();
+        if(!seg){ alert('请输入号段'); return; }
+
+        let matched = [];
+        let remain = [];
+        rows.forEach(r=>{
+          const ph = cleanPhone(r[0]);
+          if(ph.startsWith(seg)) matched.push(r); else remain.push(r);
+        });
+
+        const matchedLines = matched.map(r=> r.join(","));
+        const remainLines = remain.map(r=> r.join(","));
+
+        const blob1 = new Blob([matchedLines.join("\n")], { type:'text/plain;charset=utf-8' });
+        const blob2 = new Blob([remainLines.join("\n")], { type:'text/plain;charset=utf-8' });
+
+        downloadSegBtn.href = URL.createObjectURL(blob1);
+        downloadSegBtn.download = `segment_${seg}_${matched.length}_${Date.now()}.txt`;
+        downloadSegBtn.textContent = `下载号段结果 (${matched.length} 行)`;
+        downloadSegBtn.classList.remove('disabled');
+
+        downloadRemainBtn.href = URL.createObjectURL(blob2);
+        downloadRemainBtn.download = `remain_except_${seg}_${remain.length}_${Date.now()}.txt`;
+        downloadRemainBtn.textContent = `下载剩余号码 (${remain.length} 行)`;
+        downloadRemainBtn.classList.remove('disabled');
+
+        segmentInfo.textContent = `筛选完成：号段 ${seg} → ${matched.length} 行；剩余 ${remain.length} 行`;
+      });
     });
   </script>
   <style>
     body{font-family:sans-serif;max-width:900px;margin:20px auto;padding:0 15px;}
     .card{border:1px solid #ddd;border-radius:8px;padding:16px;margin:12px 0;}
-    .btn{padding:10px 16px;background:#1a73e8;color:#fff;border:none;border-radius:6px;cursor:pointer;}
+    .btn{padding:10px 16px;background:#1a73e8;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:10px;}
     .btn.disabled{opacity:.5;pointer-events:none;}
     textarea{width:100%;height:200px;margin-top:10px;}
   </style>
 </head>
 <body>
-  <h1>📱 手机号匹配提取工具 (支持多文件)</h1>
+  <h1>📱 会发财---手机号匹配提取工具</h1>
   <div class="card">
     <h3>① 选择一个或多个 CSV 文件 (含手机号)</h3>
     <input id="csvFiles" type="file" accept=".csv,.txt" multiple />
@@ -110,6 +155,17 @@
     <a id="downloadBtn" class="btn disabled" href="#">下载结果 TXT</a>
     <p id="resultInfo"></p>
     <textarea id="previewBox" placeholder="结果预览 (前50行)"></textarea>
+  </div>
+
+  <div class="card">
+    <h3>④ 号段筛选功能</h3>
+    <p>上传一个 TXT 文件，并输入要筛选的号段，例如 <b>255</b>：</p>
+    <input id="segmentFile" type="file" accept=".txt,.csv" />
+    <input id="segmentInput" type="text" placeholder="输入号段 (如 255)" />
+    <button id="segmentBtn" class="btn">筛选号段</button>
+    <a id="downloadSegBtn" class="btn disabled" href="#">下载号段结果</a>
+    <a id="downloadRemainBtn" class="btn disabled" href="#">下载剩余号码</a>
+    <p id="segmentInfo"></p>
   </div>
 </body>
 </html>
