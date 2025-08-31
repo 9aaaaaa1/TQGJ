@@ -1,0 +1,115 @@
+﻿<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>手机号匹配提取</title>
+  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
+  <script>
+    function cleanPhone(v){ if(v==null) return ""; return String(v).replace(/\D+/g, ""); }
+
+    function detectDelimiter(sampleText){
+      const comma = (sampleText.match(/,/g)||[]).length;
+      const tab = (sampleText.match(/\t/g)||[]).length;
+      if (tab > comma) return "\t";
+      return ",";
+    }
+
+    function readAsText(file){
+      return new Promise((resolve, reject)=>{
+        const fr = new FileReader();
+        fr.onload = () => resolve(fr.result);
+        fr.onerror = reject;
+        fr.readAsText(file, 'utf-8');
+      });
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const el = (id)=> document.getElementById(id);
+      const csvInput = el('csvFiles');
+      const txtInput = el('txtFiles');
+      const parseBtn = el('parseBtn');
+      const downloadBtn = el('downloadBtn');
+      const resultInfo = el('resultInfo');
+      const previewBox = el('previewBox');
+
+      let csvPhonesSet = new Set();
+      let txtRows = [];
+      let matchedRows = [];
+
+      async function handleCSV(){
+        csvPhonesSet.clear();
+        if(!csvInput.files?.length){ return; }
+        for(const file of csvInput.files){
+          const text = await readAsText(file);
+          const parsed = Papa.parse(text, { header:true, skipEmptyLines:true });
+          const headers = parsed.meta.fields;
+          const phoneCol = headers.find(h=> h.includes("手机号")||h.toLowerCase().includes("phone")) || headers[0];
+          parsed.data.forEach(row=>{
+            const ph = cleanPhone(row[phoneCol]);
+            if(ph) csvPhonesSet.add(ph);
+          });
+        }
+        resultInfo.textContent = `已加载 ${csvInput.files.length} 个 CSV，共提取 ${csvPhonesSet.size} 个手机号`;
+      }
+
+      async function handleTXT(){
+        txtRows = [];
+        if(!txtInput.files?.length){ return; }
+        for(const file of txtInput.files){
+          const text = await readAsText(file);
+          const delim = detectDelimiter(text.slice(0,2000));
+          const parsed = Papa.parse(text, { header:false, delimiter:delim, skipEmptyLines:true });
+          parsed.data.forEach(r=> txtRows.push(r));
+        }
+        resultInfo.textContent = `已加载 ${txtInput.files.length} 个 TXT，总行数 ${txtRows.length}`;
+      }
+
+      parseBtn.addEventListener('click', ()=>{
+        matchedRows = [];
+        txtRows.forEach(row=>{
+          const phone = cleanPhone(row[0]);
+          if(csvPhonesSet.has(phone)){
+            matchedRows.push(row);
+          }
+        });
+        const lines = matchedRows.map(r=> r.join(","));
+        const blob = new Blob([lines.join("\n")], { type:'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        downloadBtn.href = url;
+        downloadBtn.download = `matched_phone_data_${Date.now()}.txt`;
+        downloadBtn.classList.remove('disabled');
+        resultInfo.textContent = `匹配完成：${matchedRows.length} 行`;        
+        previewBox.value = lines.slice(0,50).join("\n");
+      });
+
+      csvInput.addEventListener('change', handleCSV);
+      txtInput.addEventListener('change', handleTXT);
+    });
+  </script>
+  <style>
+    body{font-family:sans-serif;max-width:900px;margin:20px auto;padding:0 15px;}
+    .card{border:1px solid #ddd;border-radius:8px;padding:16px;margin:12px 0;}
+    .btn{padding:10px 16px;background:#1a73e8;color:#fff;border:none;border-radius:6px;cursor:pointer;}
+    .btn.disabled{opacity:.5;pointer-events:none;}
+    textarea{width:100%;height:200px;margin-top:10px;}
+  </style>
+</head>
+<body>
+  <h1>📱 手机号匹配提取工具 (支持多文件)</h1>
+  <div class="card">
+    <h3>① 选择一个或多个 CSV 文件 (含手机号)</h3>
+    <input id="csvFiles" type="file" accept=".csv,.txt" multiple />
+  </div>
+  <div class="card">
+    <h3>② 选择一个或多个 TXT 文件 (数据源)</h3>
+    <input id="txtFiles" type="file" accept=".txt,.csv" multiple />
+  </div>
+  <div class="card">
+    <button id="parseBtn" class="btn">③ 开始匹配</button>
+    <a id="downloadBtn" class="btn disabled" href="#">下载结果 TXT</a>
+    <p id="resultInfo"></p>
+    <textarea id="previewBox" placeholder="结果预览 (前50行)"></textarea>
+  </div>
+</body>
+</html>
