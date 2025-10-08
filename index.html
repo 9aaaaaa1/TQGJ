@@ -3,169 +3,202 @@
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>手机号匹配提取 </title>
-  <script src="https://cdn.jsdelivr.net/npm/papaparse@5.4.1/papaparse.min.js"></script>
-  <script>
-    function cleanPhone(v){ if(v==null) return ""; return String(v).replace(/\D+/g, ""); }
-
-    function detectDelimiter(sampleText){
-      const comma = (sampleText.match(/,/g)||[]).length;
-      const tab = (sampleText.match(/\t/g)||[]).length;
-      if (tab > comma) return "\t";
-      return ",";
-    }
-
-    function readAsText(file){
-      return new Promise((resolve, reject)=>{
-        const fr = new FileReader();
-        fr.onload = () => resolve(fr.result);
-        fr.onerror = reject;
-        fr.readAsText(file, 'utf-8');
-      });
-    }
-
-    document.addEventListener('DOMContentLoaded', () => {
-      const el = (id)=> document.getElementById(id);
-      const csvInput = el('csvFiles');
-      const txtInput = el('txtFiles');
-      const parseBtn = el('parseBtn');
-      const downloadBtn = el('downloadBtn');
-      const resultInfo = el('resultInfo');
-      const previewBox = el('previewBox');
-
-      // 新增：号段筛选相关元素
-      const segmentInput = el('segmentInput');
-      const segmentFileInput = el('segmentFile');
-      const segmentBtn = el('segmentBtn');
-      const downloadSegBtn = el('downloadSegBtn');
-      const downloadRemainBtn = el('downloadRemainBtn');
-      const segmentInfo = el('segmentInfo');
-
-      let csvPhonesSet = new Set();
-      let txtRows = [];
-      let matchedRows = [];
-
-      async function handleCSV(){
-        csvPhonesSet.clear();
-        if(!csvInput.files?.length){ return; }
-        for(const file of csvInput.files){
-          const text = await readAsText(file);
-          const parsed = Papa.parse(text, { header:true, skipEmptyLines:true });
-          const headers = parsed.meta.fields;
-          const phoneCol = headers.find(h=> h.includes("手机号")||h.toLowerCase().includes("phone")) || headers[0];
-          parsed.data.forEach(row=>{
-            const ph = cleanPhone(row[phoneCol]);
-            if(ph) csvPhonesSet.add(ph);
-          });
-        }
-        resultInfo.textContent = `已加载 ${csvInput.files.length} 个 CSV，共提取 ${csvPhonesSet.size} 个手机号`;
-      }
-
-      async function handleTXT(){
-        txtRows = [];
-        if(!txtInput.files?.length){ return; }
-        for(const file of txtInput.files){
-          const text = await readAsText(file);
-          const delim = detectDelimiter(text.slice(0,2000));
-          const parsed = Papa.parse(text, { header:false, delimiter:delim, skipEmptyLines:true });
-          parsed.data.forEach(r=> txtRows.push(r));
-        }
-        resultInfo.textContent = `已加载 ${txtInput.files.length} 个 TXT，总行数 ${txtRows.length}`;
-      }
-
-      parseBtn.addEventListener('click', ()=>{
-        matchedRows = [];
-        txtRows.forEach(row=>{
-          const phone = cleanPhone(row[0]);
-          if(csvPhonesSet.has(phone)){
-            matchedRows.push(row);
-          }
-        });
-        const lines = matchedRows.map(r=> r.join(","));
-        const blob = new Blob([lines.join("\n")], { type:'text/plain;charset=utf-8' });
-        const url = URL.createObjectURL(blob);
-        downloadBtn.href = url;
-        downloadBtn.download = `matched_phone_data_${Date.now()}.txt`;
-        downloadBtn.classList.remove('disabled');
-        resultInfo.textContent = `匹配完成：${matchedRows.length} 行`;        
-        previewBox.value = lines.slice(0,50).join("\n");
-      });
-
-      csvInput.addEventListener('change', handleCSV);
-      txtInput.addEventListener('change', handleTXT);
-
-      // 号段筛选功能
-      segmentBtn.addEventListener('click', async ()=>{
-        if(!segmentFileInput.files?.length){ alert('请先选择一个TXT文件'); return; }
-        const file = segmentFileInput.files[0];
-        const text = await readAsText(file);
-        const delim = detectDelimiter(text.slice(0,2000));
-        const parsed = Papa.parse(text, { header:false, delimiter:delim, skipEmptyLines:true });
-        const rows = parsed.data;
-        const seg = segmentInput.value.trim();
-        if(!seg){ alert('请输入号段'); return; }
-
-        let matched = [];
-        let remain = [];
-        rows.forEach(r=>{
-          const ph = cleanPhone(r[0]);
-          if(ph.startsWith(seg)) matched.push(r); else remain.push(r);
-        });
-
-        const matchedLines = matched.map(r=> r.join(","));
-        const remainLines = remain.map(r=> r.join(","));
-
-        const blob1 = new Blob([matchedLines.join("\n")], { type:'text/plain;charset=utf-8' });
-        const blob2 = new Blob([remainLines.join("\n")], { type:'text/plain;charset=utf-8' });
-
-        downloadSegBtn.href = URL.createObjectURL(blob1);
-        downloadSegBtn.download = `segment_${seg}_${matched.length}_${Date.now()}.txt`;
-        downloadSegBtn.textContent = `下载号段结果 (${matched.length} 行)`;
-        downloadSegBtn.classList.remove('disabled');
-
-        downloadRemainBtn.href = URL.createObjectURL(blob2);
-        downloadRemainBtn.download = `remain_except_${seg}_${remain.length}_${Date.now()}.txt`;
-        downloadRemainBtn.textContent = `下载剩余号码 (${remain.length} 行)`;
-        downloadRemainBtn.classList.remove('disabled');
-
-        segmentInfo.textContent = `筛选完成：号段 ${seg} → ${matched.length} 行；剩余 ${remain.length} 行`;
-      });
-    });
-  </script>
+  <title>收入记录</title>
   <style>
-    body{font-family:sans-serif;max-width:900px;margin:20px auto;padding:0 15px;}
-    .card{border:1px solid #ddd;border-radius:8px;padding:16px;margin:12px 0;}
-    .btn{padding:10px 16px;background:#1a73e8;color:#fff;border:none;border-radius:6px;cursor:pointer;margin-right:10px;}
-    .btn.disabled{opacity:.5;pointer-events:none;}
-    textarea{width:100%;height:200px;margin-top:10px;}
+    body {
+      font-family: 'Microsoft YaHei', sans-serif;
+      background: #f4f6f8;
+      margin: 0;
+      padding: 20px;
+      color: #333;
+    }
+    h1 {
+      text-align: center;
+      color: #2c3e50;
+    }
+    .container {
+      max-width: 800px;
+      margin: 0 auto;
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      padding: 20px;
+    }
+    input, select, button, textarea {
+      padding: 8px;
+      margin: 5px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 14px;
+    }
+    button {
+      cursor: pointer;
+      background: #3498db;
+      color: white;
+      border: none;
+      transition: 0.3s;
+    }
+    button:hover {
+      background: #2980b9;
+    }
+    .record-list {
+      margin-top: 20px;
+    }
+    .record-item {
+      display: flex;
+      justify-content: space-between;
+      background: #f9f9f9;
+      border-radius: 8px;
+      padding: 10px;
+      margin-bottom: 8px;
+    }
+    .record-item.negative {
+      color: #e74c3c;
+    }
+    .record-item.positive {
+      color: #2ecc71;
+    }
+    .summary {
+      margin-top: 20px;
+      background: #ecf0f1;
+      padding: 10px;
+      border-radius: 8px;
+    }
+    .top-buttons {
+      display: flex;
+      justify-content: space-between;
+      margin-bottom: 10px;
+      flex-wrap: wrap;
+      gap: 6px;
+    }
   </style>
 </head>
 <body>
-  <h1>📱 会发财---手机号匹配提取工具</h1>
-  <div class="card">
-    <h3>① 选择一个或多个 CSV 文件 (含手机号)</h3>
-    <input id="csvFiles" type="file" accept=".csv,.txt" multiple />
-  </div>
-  <div class="card">
-    <h3>② 选择一个或多个 TXT 文件 (数据源)</h3>
-    <input id="txtFiles" type="file" accept=".txt,.csv" multiple />
-  </div>
-  <div class="card">
-    <button id="parseBtn" class="btn">③ 开始匹配</button>
-    <a id="downloadBtn" class="btn disabled" href="#">下载结果 TXT</a>
-    <p id="resultInfo"></p>
-    <textarea id="previewBox" placeholder="结果预览 (前50行)"></textarea>
+  <div class="container">
+    <h1>收入记录</h1>
+
+    <div class="top-buttons">
+      <button onclick="exportData()">📤 导出数据</button>
+      <button onclick="downloadData()">💾 下载数据(JSON)</button>
+      <button onclick="importDataDialog()">📥 导入数据</button>
+    </div>
+
+    <div>
+      <input type="date" id="dateInput" />
+      <input type="number" id="amountInput" placeholder="金额" />
+      <input type="text" id="categoryInput" placeholder="分类" />
+      <input type="text" id="noteInput" placeholder="备注" />
+      <button onclick="addRecord()">添加记录</button>
+    </div>
+
+    <div id="recordsContainer" class="record-list"></div>
+    <div id="summaryContainer" class="summary"></div>
   </div>
 
-  <div class="card">
-    <h3>④ 号段筛选功能</h3>
-    <p>上传一个 TXT 文件，并输入要筛选的号段，例如 <b>255</b>：</p>
-    <input id="segmentFile" type="file" accept=".txt,.csv" />
-    <input id="segmentInput" type="text" placeholder="输入号段 (如 255)" />
-    <button id="segmentBtn" class="btn">筛选号段</button>
-    <a id="downloadSegBtn" class="btn disabled" href="#">下载号段结果</a>
-    <a id="downloadRemainBtn" class="btn disabled" href="#">下载剩余号码</a>
-    <p id="segmentInfo"></p>
-  </div>
+  <script>
+    const STORAGE_KEY = 'incomeRecords';
+
+    function loadRecords() {
+      return JSON.parse(localStorage.getItem(STORAGE_KEY) || '[]');
+    }
+
+    function saveRecords(records) {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(records));
+    }
+
+    function addRecord() {
+      const date = document.getElementById('dateInput').value;
+      const amount = parseFloat(document.getElementById('amountInput').value);
+      const category = document.getElementById('categoryInput').value.trim();
+      const note = document.getElementById('noteInput').value.trim();
+      if (!date || isNaN(amount)) return alert('请输入日期和金额');
+      const records = loadRecords();
+      records.push({ date, amount, category, note });
+      saveRecords(records);
+      render();
+    }
+
+    function groupByMonth(records) {
+      return records.reduce((acc, rec) => {
+        const month = rec.date.slice(0,7);
+        if (!acc[month]) acc[month] = [];
+        acc[month].push(rec);
+        return acc;
+      }, {});
+    }
+
+    function render() {
+      const records = loadRecords();
+      const grouped = groupByMonth(records);
+      const container = document.getElementById('recordsContainer');
+      const summary = document.getElementById('summaryContainer');
+      container.innerHTML = '';
+      summary.innerHTML = '';
+
+      Object.keys(grouped).sort().reverse().forEach(month => {
+        const monthRecords = grouped[month];
+        const total = monthRecords.reduce((sum, r) => sum + r.amount, 0);
+
+        const monthDiv = document.createElement('div');
+        monthDiv.innerHTML = `<h3>${month}（总计：<span style="color:${total>=0?'#2ecc71':'#e74c3c'}">${total.toFixed(2)}</span>）</h3>`;
+
+        monthRecords.forEach((r, idx) => {
+          const item = document.createElement('div');
+          item.className = 'record-item ' + (r.amount>=0 ? 'positive' : 'negative');
+          item.innerHTML = `
+            <div>${r.date} | ${r.category || '未分类'} | ${r.note || ''}</div>
+            <div>${r.amount.toFixed(2)}</div>
+          `;
+          monthDiv.appendChild(item);
+        });
+
+        container.appendChild(monthDiv);
+      });
+    }
+
+    function exportData() {
+      const data = JSON.stringify(loadRecords(), null, 2);
+      prompt('以下是您的数据，可复制保存：', data);
+    }
+
+    function downloadData() {
+      const records = loadRecords();
+      const blob = new Blob([JSON.stringify(records, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const today = new Date().toISOString().slice(0,10);
+      a.href = url;
+      a.download = `income_records_${today}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
+
+    function importDataDialog() {
+      const json = prompt('粘贴导入的JSON数据：');
+      if (!json) return;
+      let imported;
+      try {
+        imported = JSON.parse(json);
+      } catch(e) {
+        alert('JSON格式错误');
+        return;
+      }
+
+      const mode = confirm('是否覆盖现有数据？\n确定=覆盖，取消=合并');
+      let records = loadRecords();
+      if (mode) {
+        records = imported;
+      } else {
+        records = [...records, ...imported];
+      }
+      saveRecords(records);
+      alert('导入成功！');
+      render();
+    }
+
+    render();
+  </script>
 </body>
 </html>
